@@ -1,0 +1,399 @@
+import { MatchState, GameMode } from "../Shared/Index"
+import { SETTINGS, DefaultWeapons, GunGameWeapons, CharacterMeshes, PatternList, GetMultiKillLabel, GetKillStreakLabel, GetCountdownAnnouncer } from "Config.lux"
+
+local state = {
+    matchState = 0,
+    remainingTime = 0,
+    firstBlood = false,
+    skyHourTime = 9,
+    spawnLocations = Server.GetMapSpawnPoints(),
+}
+
+local function getNum(p: Player, key: string): number
+    local v = p:GetValue(key, nil)
+    if v == nil then return 0 end
+    return v as number
+end
+
+local function spawnActionSound(location: Vector, asset: string, player: Player?)
+    Timer.SetTimeout(function(_asset)
+        if player ~= nil then
+            Events.CallRemote("SpawnActionSound", player, location, _asset)
+        else
+            Events.BroadcastRemote("SpawnActionSound", location, _asset)
+        end
+    end, 300, asset)
+end
+
+local function addScore(player: Player, score: number, id: string, label: string, useCurrentLabel: boolean?, silence: boolean?)
+    player:SetValue("Score", getNum(player, "Score") + score, true)
+    if not silence then
+        Events.CallRemote("AddScore", player, score, id, label, useCurrentLabel or false)
+    end
+end
+
+local function updatePlayerMatchState(player: Player?)
+    if player ~= nil then
+        Events.CallRemote("UpdateMatchState", player, state.matchState, state.remainingTime, state.skyHourTime)
+    else
+        Events.BroadcastRemote("UpdateMatchState", state.matchState, state.remainingTime, state.skyHourTime)
+    end
+end
+
+local function spawnWeapon(player: Player): Weapon?
+    local weapon: Weapon? = nil
+    if SETTINGS.mode == GameMode.Deathmatch and SETTINGS.weaponsToUse == "default" then
+        weapon = DefaultWeapons[math.random(#DefaultWeapons)]()
+    elseif SETTINGS.mode == GameMode.GunGame then
+        local pScore = getNum(player, "Score")
+        if pScore >= #GunGameWeapons then return nil end
+        weapon = GunGameWeapons[pScore + 1]()
+    end
+    if weapon == nil then return nil end
+    weapon:SetAmmoBag(weapon:GetAmmoClip() * 3)
+    if SETTINGS.weaponsToUse == "default" then
+        weapon:SetMaterialTextureParameter("PatternTexture", "assets://nanos-world/Textures/Pattern/" .. PatternList[math.random(#PatternList)])
+        weapon:SetMaterialScalarParameter("PatternBlend", 1)
+        weapon:SetMaterialScalarParameter("PatternTiling", 2)
+        weapon:SetMaterialScalarParameter("PatternRoughness", 0.3)
+    end
+    return weapon
+end
+
+local function respawnPlayer(player: Player): Character?
+    if not player or not player:IsValid() then return nil end
+    local existing = player:GetControlledCharacter()
+    local spawnPoint = state.spawnLocations[math.random(#state.spawnLocations)]
+    local loc = (spawnPoint and spawnPoint.location) or new Vector(math.random(-3000, 3000), math.random(-3000, 3000), 0)
+    loc = loc + new Vector(0, 0, math.random(5000, 6000))
+    local rot = (spawnPoint and spawnPoint.rotation) or new Rotator(0, math.random(-180, 180), 0)
+
+    local character: Character
+    if existing ~= nil then
+        local weapon = existing:GetPicked()
+        if weapon ~= nil and weapon:IsValid() then weapon:Destroy() end
+        existing:Respawn(loc, rot)
+        character = existing
+    else
+        local mesh = CharacterMeshes[math.random(#CharacterMeshes)]
+        character = new Character(loc, rot, mesh)
+        character:SetMorphTarget("Close_Mouth", 1)
+        character:SetCanPickupPickables(false)
+        character:SetCanGrabProps(false)
+        character:SetCanDrop(false)
+        character:SetSpeedMultiplier(1.3)
+        player:Possess(character as Pawn)
+    end
+
+    if state.matchState == MatchState.Preparing then
+        character:SetInputEnabled(false)
+    end
+
+    local weapon = spawnWeapon(player)
+    if weapon ~= nil then character:PickUp(weapon as Pickable) end
+
+    character:SetInvulnerable(true)
+    character:SetMaterialColorParameter("Tint", Color.BLUE)
+    Timer.Bind(Timer.SetTimeout(function(c)
+        c:SetMaterialColorParameter("Tint", Color.WHITE)
+        c:SetInvulnerable(false)
+    end, 3000, character), character as Actor)
+    return character
+end
+
+local function cleanUp()
+    for _, p in pairs(Player.GetAll()) do
+        p:SetValue("Kills", 0, true)
+        p:SetValue("LastKillAt", 0, true)
+        p:SetValue("MultiKillCount", 0, true)
+        p:SetValue("Deaths", 0, true)
+        p:SetValue("Score", 0, true)
+        p:SetValue("KillStreak", 0, true)
+        p:SetValue("AccumulatedKills", 0)
+        respawnPlayer(p)
+    end
+end
+
+local function spawnPowerUp(location: Vector)
+    local newLoc = location + new Vector(0, 0, 30)
+    local p1 = new Prop(newLoc, new Rotator(), "nanos-world::SM_Cube", CollisionType.NoCollision, false, false)
+    p1:SetScale(new Vector(0.75, 0.25, 0.25))
+    p1:SetMaterialColorParameter("Emissive", Color.GREEN)
+    local p2 = new Prop(newLoc, new Rotator(), "nanos-world::SM_Cube", CollisionType.NoCollision, false, false)
+    p2:SetScale(new Vector(0.25, 0.25, 0.75))
+    p2:SetMaterialColorParameter("Emissive", Color.GREEN)
+    local trigger = new Trigger(newLoc, new Rotator(), new Vector(100, 100, 100), TriggerType.Sphere, false, Color.BLACK, { "Character" })
+    p1:AttachTo(trigger as Actor, AttachmentRule.SnapToTarget, "", 0)
+    p2:AttachTo(trigger as Actor, AttachmentRule.SnapToTarget, "", 0)
+    trigger:Subscribe("BeginOverlap", function(self, object)
+        if object:IsA(Character) and not object:IsDead() then
+            object:SetHealth(math.min(object:GetHealth() + 50, 120))
+            local weapon = object:GetPicked()
+            if weapon ~= nil and weapon:IsA(Weapon) then
+                weapon:SetAmmoBag(math.min(weapon:GetAmmoBag() + 50, 100))
+            end
+            Events.CallRemote("SpawnSound", object:GetPlayer(), new Vector(), "nanos-world::A_VR_Open", true, 1, 1)
+            self:Destroy()
+        end
+    end)
+    trigger:SetLifeSpan(30)
+end
+
+local function announcePostTime()
+    Chat.BroadcastMessage("<green>End of match!</> Scoreboard:")
+    Chat.BroadcastMessage("<grey>=============================</>")
+    local ranking: Player[] = {}
+    for _, p in pairs(Player.GetAll()) do
+        table.insert(ranking, p)
+    end
+    table.sort(ranking, function(a, b)
+        return getNum(a, "Score") > getNum(b, "Score")
+    end)
+    for rank, p in pairs(ranking) do
+        if rank == 1 then
+            Events.CallRemote("SpawnSound", p, new Vector(), "unreal-tournament-announcer::A_Winner", true, 1, 1)
+        elseif rank == #ranking then
+            Events.CallRemote("SpawnSound", p, new Vector(), "unreal-tournament-announcer::A_LastPlace", true, 1, 1)
+        end
+        local pScore = getNum(p, "Score")
+        Chat.BroadcastMessage(tostring(rank) .. "# <cyan>" .. p:GetName() .. "</>: " .. tostring(pScore))
+        Events.CallRemote("SubmitScoreToSteamLeaderboard", p, pScore)
+    end
+    Chat.BroadcastMessage("<grey>=============================</>")
+end
+
+local function updateMatchState(newState: number)
+    state.matchState = newState
+
+    if newState == MatchState.WarmUp then
+        state.remainingTime = SETTINGS.warmupTime
+        state.skyHourTime = math.random(0, 24)
+        Console.Log("Warm-up!")
+        Chat.BroadcastMessage("<grey>Warm-up!</>")
+        cleanUp()
+    elseif newState == MatchState.Preparing then
+        state.remainingTime = SETTINGS.preparingTime
+        Events.BroadcastRemote("SpawnSound", new Vector(), "unreal-tournament-announcer::A_Prepare", true, 1, 1)
+        Console.Log("Preparing!")
+        Chat.BroadcastMessage("<grey>Preparing!</>")
+        cleanUp()
+        for _, c in pairs(Character.GetAll()) do
+            c:SetInputEnabled(false)
+            c:SetFlyingMode(true)
+        end
+    elseif newState == MatchState.InProgress then
+        state.remainingTime = SETTINGS.matchTime
+        state.firstBlood = false
+        Events.BroadcastRemote("SpawnSound", new Vector(), "unreal-tournament-announcer::A_Proceed", true, 1, 1)
+        Console.Log("Round started!")
+        Chat.BroadcastMessage("<grey>Round Started!</>")
+        for _, c in pairs(Character.GetAll()) do
+            c:SetInputEnabled(true)
+            c:SetFlyingMode(false)
+        end
+    elseif newState == MatchState.PostTime then
+        state.remainingTime = SETTINGS.postTime
+        for _, c in pairs(Character.GetAll()) do
+            c:SetInputEnabled(false)
+            c:SetFlyingMode(true)
+        end
+        announcePostTime()
+        Console.Log("Post time!")
+        Chat.BroadcastMessage("<grey>Post time!</>")
+    end
+
+    updatePlayerMatchState(nil)
+end
+
+local function awardKillStreak(player: Player, location: Vector, streak: number)
+    if streak < 5 then return end
+    local label, soundAsset, score = GetKillStreakLabel(streak)
+    Chat.BroadcastMessage("<cyan>" .. player:GetName() .. "</> is on a <red>" .. tostring(streak) .. "</> kill streak!")
+    if label and soundAsset and score then
+        if SETTINGS.mode == GameMode.Deathmatch then
+            addScore(player, score, "killingspree", label, nil, nil)
+        end
+        spawnActionSound(location, soundAsset, nil)
+    end
+end
+
+local function awardMultiKill(player: Player, location: Vector, now: number, lastKillAt: number)
+    local mkCount = getNum(player, "MultiKillCount")
+    local mkWindow = SETTINGS.multiKillTime + mkCount * SETTINGS.multiKillTimeMultiplier
+    if os.difftime(now, lastKillAt) >= mkWindow then
+        player:SetValue("MultiKillCount", 1, true)
+        return
+    end
+    mkCount = mkCount + 1
+    player:SetValue("MultiKillCount", mkCount, true)
+    local label, soundAsset, score = GetMultiKillLabel(mkCount)
+    Chat.BroadcastMessage("<cyan>" .. player:GetName() .. "</> made a <red>" .. label .. "</>")
+    if SETTINGS.mode == GameMode.Deathmatch then
+        addScore(player, score, "multikill", label, nil, nil)
+    end
+    if soundAsset ~= nil then
+        if mkCount >= 3 then spawnActionSound(location, soundAsset, nil)
+        else spawnActionSound(location, soundAsset, player) end
+    end
+end
+
+local function levelUpGunGame(player: Player)
+    if getNum(player, "Score") + 1 == #GunGameWeapons then
+        updateMatchState(MatchState.PostTime)
+        Chat.BroadcastMessage("<cyan>" .. player:GetName() .. "</> has won!")
+        return
+    end
+    local accumulated = getNum(player, "AccumulatedKills")
+    if accumulated < 1 then
+        player:SetValue("AccumulatedKills", 1, true)
+        return
+    end
+    player:SetValue("AccumulatedKills", 0, true)
+    addScore(player, 1, "level_up", "LEVEL UP", false, true)
+    local character = player:GetControlledCharacter()
+    if character == nil then return end
+    local weapon = character:GetPicked()
+    local oldAiming = character:GetWeaponAimMode()
+    if weapon ~= nil and weapon:IsValid() then weapon:Destroy() end
+    local newWeapon = spawnWeapon(player)
+    if newWeapon ~= nil then
+        character:PickUp(newWeapon as Pickable)
+        character:SetWeaponAimMode(oldAiming)
+    end
+end
+
+local function addKill(player: Player, location: Vector)
+    player:SetValue("Kills", getNum(player, "Kills") + 1, true)
+    local lastKillAt = getNum(player, "LastKillAt")
+    local now = os.time()
+    player:SetValue("LastKillAt", now, true)
+    local streak = getNum(player, "KillStreak") + 1
+    player:SetValue("KillStreak", streak, true)
+
+    if not state.firstBlood then
+        state.firstBlood = true
+        spawnActionSound(location, "unreal-tournament-announcer::A_FirstBlood", nil)
+    end
+    awardKillStreak(player, location, streak)
+    awardMultiKill(player, location, now, lastKillAt)
+
+    if SETTINGS.mode == GameMode.GunGame then
+        levelUpGunGame(player)
+    end
+end
+
+local function addDeath(player: Player, instigator: Player?)
+    player:SetValue("Deaths", getNum(player, "Deaths") + 1, true)
+    if instigator ~= nil then
+        local streak = getNum(player, "KillStreak")
+        if streak >= 5 then
+            if SETTINGS.mode == GameMode.Deathmatch then
+                addScore(instigator, 50, "killstreak_ended", "KILLSTREAK ENDED", nil, nil)
+            end
+            Chat.BroadcastMessage("<cyan>" .. instigator:GetName() .. "</> ended <cyan>" .. player:GetName() .. "'s</> <red>" .. tostring(streak) .. "</> streak!")
+        end
+    end
+    player:SetValue("KillStreak", 0, true)
+end
+
+Character.Subscribe("TakeDamage", function(character: Character, damage: number, bone: string, dmgType: number, fromLoc: Vector, instigator: Player?, causer: any)
+    if not instigator or instigator == character:GetPlayer() or character:IsDead() then return end
+    local health = character:GetHealth()
+    local trueDamage: number = damage
+    if health < damage then trueDamage = health end
+    if SETTINGS.mode == GameMode.Deathmatch then
+        addScore(instigator, trueDamage, "enemy_hit", "ENEMY HIT", true, nil)
+    end
+end)
+
+Character.Subscribe("Death", function(character: Character, lastDamage: number, lastBone: string, dmgType: number, hitFrom: Vector, instigator: Player?)
+    local deadPlayer = character:GetPlayer()
+    if instigator ~= nil and instigator ~= deadPlayer then
+        local killerCharacter = instigator:GetControlledCharacter()
+        local killerLoc: Vector = new Vector()
+        if killerCharacter ~= nil then killerLoc = killerCharacter:GetLocation() end
+        local isHeadshot = lastBone == "head" or lastBone == "neck_01"
+        if isHeadshot then
+            if SETTINGS.mode == GameMode.Deathmatch then
+                addScore(instigator, 20, "headshot", "HEADSHOT", nil, nil)
+            end
+            spawnActionSound(killerLoc, "unreal-tournament-announcer::A_Headshot", instigator)
+            if deadPlayer ~= nil then
+                spawnActionSound(killerLoc, "unreal-tournament-announcer::A_Headshot", deadPlayer)
+            end
+        end
+        if SETTINGS.mode == GameMode.Deathmatch then
+            addScore(instigator, 20, "enemy_kill", "ENEMY KILL", false, true)
+        end
+        addKill(instigator, killerLoc)
+        spawnPowerUp(character:GetLocation())
+    end
+
+    if deadPlayer ~= nil then
+        addDeath(deadPlayer, instigator)
+        local weapon = character:GetPicked()
+        if weapon ~= nil and weapon:IsValid() then weapon:Destroy() end
+        Timer.Bind(Timer.SetTimeout(function(p)
+            if state.matchState ~= MatchState.PostTime then
+                respawnPlayer(p)
+            end
+        end, 5000, deadPlayer), deadPlayer as Actor)
+    end
+end)
+
+Weapon.Subscribe("Drop", function(weapon: Weapon, character: Character)
+    weapon:Destroy()
+end)
+
+Package.Subscribe("Load", function()
+    Timer.SetTimeout(function()
+        updateMatchState(MatchState.WarmUp)
+    end, 100)
+end)
+
+Events.SubscribeRemote("PlayerReady", function(player: Player)
+    if state.matchState ~= MatchState.PostTime then
+        local character = respawnPlayer(player)
+        if character ~= nil and state.matchState == MatchState.Preparing then
+            character:SetInputEnabled(false)
+            character:SetFlyingMode(true)
+        end
+    end
+    updatePlayerMatchState(player)
+    Chat.BroadcastMessage("<cyan>" .. player:GetName() .. "</> has joined the server")
+end)
+
+Player.Subscribe("Destroy", function(player: Player)
+    local character = player:GetControlledCharacter()
+    if character ~= nil then character:Destroy() end
+    Chat.BroadcastMessage("<cyan>" .. player:GetName() .. "</> has left the server")
+end)
+
+Timer.SetInterval(function()
+    state.remainingTime = state.remainingTime - 1
+    local elapsed = state.remainingTime <= 0
+
+    if state.matchState == MatchState.WarmUp then
+        if elapsed then updateMatchState(MatchState.Preparing) end
+    elseif state.matchState == MatchState.Preparing then
+        if elapsed then
+            updateMatchState(MatchState.InProgress)
+        else
+            local announcer = GetCountdownAnnouncer(state.remainingTime)
+            if announcer ~= nil then
+                Events.BroadcastRemote("SpawnSound", new Vector(), announcer, true, 1, 1)
+            end
+        end
+    elseif state.matchState == MatchState.InProgress then
+        if elapsed then
+            updateMatchState(MatchState.PostTime)
+        else
+            local announcer = GetCountdownAnnouncer(state.remainingTime)
+            if announcer ~= nil then
+                Events.BroadcastRemote("SpawnSound", new Vector(), announcer, true, 1, 1)
+            end
+        end
+    elseif state.matchState == MatchState.PostTime then
+        if elapsed then updateMatchState(MatchState.Preparing) end
+    end
+end, 1000)

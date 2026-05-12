@@ -1,0 +1,24 @@
+version = "0.1.0"
+target = "5.4"
+output = "out"
+name = "deathmatch-lux"
+source = "src"
+generate_declarations = false
+globals = ["types"]
+
+[assets]
+"Package.toml" = "Package.toml"
+"src/Client/UI" = "Client/UI"
+
+[dependencies]
+nanos-world-types = "github:LuaLux/nanos-world-types"
+
+[code]
+import_statement = 'Package.Require(%s)'
+import_extension = ".lua"
+index_base = 1
+
+[sides]
+"src/Client/**" = ["client", "shared"]
+"src/Server/**" = ["server", "shared"]
+"src/Shared/**" = ["shared"]

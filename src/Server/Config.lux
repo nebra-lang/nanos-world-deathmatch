@@ -1,0 +1,89 @@
+import { GameMode } from "../Shared/Index"
+
+export local DefaultWeapons: any[] = {
+    NanosWorldWeapons.AK47, NanosWorldWeapons.AK5C, NanosWorldWeapons.GE3,
+    NanosWorldWeapons.P90, NanosWorldWeapons.UMP45, NanosWorldWeapons.Makarov,
+    NanosWorldWeapons.M1911, NanosWorldWeapons.SA80, NanosWorldWeapons.Ithaca37,
+    NanosWorldWeapons.Rem870, NanosWorldWeapons.SPAS12, NanosWorldWeapons.AWP,
+    NanosWorldWeapons.AK74U, NanosWorldWeapons.GE36, NanosWorldWeapons.Glock,
+    NanosWorldWeapons.DesertEagle, NanosWorldWeapons.AR4, NanosWorldWeapons.Moss500,
+    NanosWorldWeapons.AP5, NanosWorldWeapons.SMG11, NanosWorldWeapons.Lewis,
+    NanosWorldWeapons.M1Garand, NanosWorldWeapons.ColtPython,
+}
+
+export local GunGameWeapons: any[] = {
+    NanosWorldWeapons.AR4, NanosWorldWeapons.GE36, NanosWorldWeapons.GE3,
+    NanosWorldWeapons.AK47, NanosWorldWeapons.P90, NanosWorldWeapons.UMP45,
+    NanosWorldWeapons.AP5, NanosWorldWeapons.Lewis, NanosWorldWeapons.Rem870,
+    NanosWorldWeapons.Ithaca37, NanosWorldWeapons.SPAS12, NanosWorldWeapons.AWP,
+    NanosWorldWeapons.DesertEagle, NanosWorldWeapons.Makarov,
+    NanosWorldWeapons.M1911, NanosWorldWeapons.Glock,
+}
+
+export local CharacterMeshes: string[] = {
+    "nanos-world::SK_Adventure_01_Full_02",
+    "nanos-world::SK_Adventure_02_Full_03",
+    "nanos-world::SK_Adventure_03_Full_02",
+    "nanos-world::SK_Adventure_04_Full_02",
+    "nanos-world::SK_Adventure_05_Full_02",
+}
+
+export local PatternList: string[] = {
+    "T_80s_Pattern.jpg", "T_Chochip_Pattern.jpg", "T_Cracks_Pattern.jpg",
+    "T_Desert_Marpat_Pattern.jpg", "T_Hexagon_Glow_Pattern.jpg",
+    "T_Hexagon_Pattern.jpg", "T_Ink_Pattern.jpg", "T_LeafSpray_Pattern.jpg",
+    "T_Net01_Pattern.jpg", "T_Stripes_Pattern.jpg", "T_Urban_Marpat_Pattern.jpg",
+    "T_W90_Pattern.jpg", "T_W90K_Pattern.jpg", "T_Wood_Marpat_Pattern.jpg",
+    "T_Murica_Pattern.jpg", "T_Watermelon_Pattern.jpg", "T_Infernoo.jpg",
+    "T_Pattern_001.jpg", "T_Pattern_002.jpg", "T_Pattern_003.jpg",
+    "T_Pattern_004.jpg", "T_Pattern_005.jpg", "T_Pattern_006.jpg",
+    "T_Pattern_007.jpg", "T_Pattern_008.jpg", "T_Pattern_009.jpg",
+    "T_Pattern_010.jpg", "T_Pattern_011.jpg", "T_Pattern_012.jpg",
+    "T_Pattern_013.jpg", "T_Pattern_014.jpg", "T_Pattern_015.jpg",
+    "T_Pattern_016.jpg", "T_Pattern_017.jpg", "T_Pattern_018.jpg",
+    "T_Pattern_019.jpg", "T_Pattern_020.jpg",
+}
+
+export local SETTINGS = {
+    warmupTime = 30,
+    preparingTime = 13,
+    matchTime = 300,
+    postTime = 15,
+    multiKillTime = 6,
+    multiKillTimeMultiplier = 1,
+    weaponsToUse = "default",
+    mode = GameMode.Deathmatch,
+}
+
+local UT = "unreal-tournament-announcer::"
+
+export function GetMultiKillLabel(kills: number)
+    if kills == 2 then return "DOUBLE KILL", UT .. "A_DoubleKill", 25 end
+    if kills == 3 then return "TRIPLE KILL", UT .. "A_TripleKill", 50 end
+    if kills == 4 then return "MULTI KILL", UT .. "A_MultiKill", 100 end
+    if kills == 5 then return "MEGA KILL!", UT .. "A_MegaKill", 200 end
+    if kills == 6 then return "ULTRA KILL!!", UT .. "A_UltraKill", 300 end
+    return "MONSTER KILL!!!", UT .. "A_MonsterKill", 500
+end
+
+export function GetKillStreakLabel(kills: number)
+    if kills == 5 then return "KILLING SPREE", UT .. "A_KillingSpree", 100 end
+    if kills == 10 then return "RAMPAGE!", UT .. "A_Rampage", 200 end
+    if kills == 15 then return "DOMINATING!!", UT .. "A_Dominating", 300 end
+    if kills == 20 then return "UNSTOPPABLE!!!", UT .. "A_Unstoppable", 400 end
+    if kills >= 25 then return "GODLIKE!!!!!", UT .. "A_Godlike", 500 end
+    return nil, nil, nil
+end
+
+export function GetCountdownAnnouncer(remainingTime: number): string?
+    if remainingTime == 300 then return UT .. "A_Countdown_05_Minutes" end
+    if remainingTime == 180 then return UT .. "A_Countdown_03_Minutes" end
+    if remainingTime == 60 then return UT .. "A_Countdown_01_Minute" end
+    if remainingTime == 30 then return UT .. "A_Countdown_30_Seconds" end
+    if remainingTime >= 1 and remainingTime <= 10 then
+        local s = tostring(remainingTime)
+        if #s == 1 then s = "0" .. s end
+        return UT .. "A_Countdown_" .. s
+    end
+    return nil
+end

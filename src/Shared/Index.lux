@@ -1,0 +1,11 @@
+export enum MatchState
+    WarmUp
+    Preparing
+    InProgress
+    PostTime
+end
+
+export enum GameMode
+    Deathmatch
+    GunGame
+end

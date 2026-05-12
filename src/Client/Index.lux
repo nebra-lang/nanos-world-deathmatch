@@ -1,0 +1,167 @@
+import { MatchState } from "../Shared/Index"
+
+local MainHUD: WebUI = new WebUI("Deathmatch HUD", "file:///UI/index.html")
+local ScoreboardToggled = false
+
+Sky.Spawn()
+Sky.SetTimeOfDay(9, 30)
+Sky.SetAnimateTimeOfDay(false)
+
+Client.SetDebugEnabled(false)
+
+local state = {
+    matchState = 0,
+    remainingTime = 0,
+}
+
+KillHUDUIConfiguration.enable_auto_damage_score = true
+KillHUDUIConfiguration.kill_auto_score = 20
+KillHUDUIConfiguration.headshot_auto_score = 20
+
+Input.Register("Scoreboard", "Tab", "Toggles the Scoreboard")
+
+local function updatePlayerScoreboard(player: Player)
+    MainHUD:CallEvent("UpdatePlayer", player:GetID(), true, player:GetSteamID(),
+        player:GetName(), player:GetValue("Score", 0), player:GetValue("Kills", 0),
+        player:GetValue("Deaths", 0), player:GetPing())
+end
+
+local function updateAllPlayersScoreboard()
+    for _, p in pairs(Player.GetAll()) do
+        updatePlayerScoreboard(p)
+    end
+end
+
+local function updateAmmo(enableUI: boolean, ammo: number?, ammoBag: number?)
+    MainHUD:CallEvent("UpdateWeaponAmmo", enableUI, ammo, ammoBag)
+end
+
+local function updateHealth(health: number)
+    MainHUD:CallEvent("UpdateHealth", health)
+end
+
+local function updateLocalCharacter(character: Character?)
+    if character == nil then return end
+
+    updateHealth(character:GetHealth())
+
+    character:Subscribe("HealthChange", function(c: Character, oldHealth: number, newHealth: number)
+        updateHealth(newHealth)
+    end)
+
+    local picked = character:GetPicked()
+    if picked ~= nil and picked:IsA(Weapon) and not picked:GetValue("ToolGun", false) then
+        local weapon = picked as Weapon
+        updateAmmo(true, weapon:GetAmmoClip(), weapon:GetAmmoBag())
+    end
+
+    character:Subscribe("PickUp", function(c: Character, object: Pickable)
+        if object:IsA(Weapon) and not object:GetValue("ToolGun", false) then
+            local weapon = object as Weapon
+            updateAmmo(true, weapon:GetAmmoClip(), weapon:GetAmmoBag())
+
+            weapon:Subscribe("AmmoClipChange", function(w: Weapon, oldClip: number, newClip: number)
+                updateAmmo(true, newClip, w:GetAmmoBag())
+            end)
+
+            weapon:Subscribe("AmmoBagChange", function(w: Weapon, oldBag: number, newBag: number)
+                updateAmmo(true, w:GetAmmoClip(), newBag)
+            end)
+        end
+    end)
+
+    character:Subscribe("Drop", function(c: Character, object: Pickable)
+        updateAmmo(false, nil, nil)
+        object:Unsubscribe("AmmoClipChange")
+        object:Unsubscribe("AmmoBagChange")
+    end)
+end
+
+Input.Bind("Scoreboard", InputEvent.Released, function()
+    if state.matchState == MatchState.PostTime then return end
+    MainHUD:CallEvent("ToggleScoreboard", false)
+    ScoreboardToggled = false
+end)
+
+Input.Bind("Scoreboard", InputEvent.Pressed, function()
+    if state.matchState == MatchState.PostTime then return end
+    MainHUD:CallEvent("ToggleScoreboard", true)
+    ScoreboardToggled = true
+    updateAllPlayersScoreboard()
+end)
+
+Player.Subscribe("Spawn", function(player: Player)
+    updatePlayerScoreboard(player)
+end)
+
+Player.Subscribe("VOIP", function(player: Player, isTalking: boolean)
+    MainHUD:CallEvent("ToggleVoice", player:GetName(), isTalking)
+end)
+
+Player.Subscribe("Destroy", function(player: Player)
+    MainHUD:CallEvent("UpdatePlayer", player:GetID(), false)
+end)
+
+Timer.SetInterval(function()
+    updateAllPlayersScoreboard()
+end, 1000)
+
+Client.Subscribe("SpawnLocalPlayer", function(localPlayer: Player)
+    localPlayer:Subscribe("Possess", function(p: Player, character: Character)
+        updateLocalCharacter(character)
+    end)
+end)
+
+Package.Subscribe("Load", function()
+    Timer.SetTimeout(function()
+        Events.CallRemote("PlayerReady")
+    end, 200)
+
+    local localPlayer = Client.GetLocalPlayer()
+    if localPlayer ~= nil then
+        updateLocalCharacter(localPlayer:GetControlledCharacter())
+        localPlayer:Subscribe("Possess", function(p: Player, character: Character)
+            updateLocalCharacter(character)
+        end)
+    end
+
+    updateAllPlayersScoreboard()
+end)
+
+Events.SubscribeRemote("UpdateMatchState", function(matchState: number, remainingTime: number, skyHourTime: number)
+    state.matchState = matchState
+    state.remainingTime = remainingTime - 1
+
+    local label = ""
+    if matchState == MatchState.WarmUp then
+        MainHUD:CallEvent("ToggleScoreboard", false)
+        label = "WARM UP "
+    elseif matchState == MatchState.Preparing then
+        MainHUD:CallEvent("ToggleScoreboard", false)
+        label = "STARTING IN "
+    elseif matchState == MatchState.InProgress then
+        label = ""
+    elseif matchState == MatchState.PostTime then
+        MainHUD:CallEvent("ToggleScoreboard", true)
+        updateAllPlayersScoreboard()
+        label = "POST TIME "
+    end
+
+    MainHUD:CallEvent("UpdateMatchStatus", label, state.remainingTime)
+    Sky.SetTimeOfDay(skyHourTime, 0)
+end)
+
+Events.SubscribeRemote("SpawnSound", function(location: Vector, soundAsset: string, is2D: boolean, volume: number, pitch: number)
+    new Sound(location, soundAsset, is2D, true, SoundType.SFX, volume, pitch)
+end)
+
+Events.SubscribeRemote("SpawnActionSound", function(location: Vector, soundAsset: string)
+    new Sound(location, soundAsset, false, true, SoundType.SFX, 1, 1, 400, 10000, AttenuationFunction.LogReverse)
+end)
+
+(Steam as any):FindLeaderboard("deathmatch")
+(Client as any):SetEscapeMenuLeaderboard(true, "deathmatch", "Deathmatch Top Players Leaderboard")
+
+Events.SubscribeRemote("SubmitScoreToSteamLeaderboard", function(score: number)
+    (Steam as any):IncrementLeaderboardScore("deathmatch", score)
+end)

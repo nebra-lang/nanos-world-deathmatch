@@ -1,0 +1,8 @@
+-- Ambient globals provided by external nanos packages at runtime.
+-- nanos auto-loads dependency packages; we don't have full type info for
+-- those, so we declare them as `any` to satisfy the type checker.
+
+declare NanosWorldWeapons: any
+
+-- Battlefield-Kill-HUD config table, exposed by the matching nanos asset pack.
+declare KillHUDUIConfiguration: any

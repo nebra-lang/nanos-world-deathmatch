@@ -1,0 +1,21 @@
+# nanos-world Package manifest. Reference:
+# https://docs.nanos-world.com/docs/core-concepts/packages/packages-guide
+
+[meta]
+title = "deathmatch-lux"
+type = "game-mode"
+author = ""
+version = "0.1.0"
+description = ""
+image = ""
+force_no_map_package_replacement = false
+
+[compatibility]
+client = true
+server = true
+
+[server_config]
+# add server-only config here
+
+[client_config]
+# add client-only config here

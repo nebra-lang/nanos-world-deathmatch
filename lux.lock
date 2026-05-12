@@ -1,0 +1,9 @@
+version = 1
+
+[[packages]]
+name = "nanos-world-types"
+spec = "github:LuaLux/nanos-world-types"
+resolved = "github:LuaLux/nanos-world-types"
+commit = "820079485d2d64843a4647e9c1522e53d7c27631"
+integrity = "sha256-bd2e2e3f6c6049b3d126fc870cb720bf726418f4c04cc41d645eeb2aa84bb318"
+deps = []
