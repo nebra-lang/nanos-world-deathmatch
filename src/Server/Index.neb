@@ -1,5 +1,5 @@
 import { MatchState, GameMode } from "../Shared/Index"
-import { SETTINGS, DefaultWeapons, GunGameWeapons, CharacterMeshes, PatternList, GetMultiKillLabel, GetKillStreakLabel, GetCountdownAnnouncer } from "Config.lux"
+import { SETTINGS, DefaultWeapons, GunGameWeapons, CharacterMeshes, PatternList, GetMultiKillLabel, GetKillStreakLabel, GetCountdownAnnouncer } from "Config.neb"
 
 local state = {
     matchState = 0,

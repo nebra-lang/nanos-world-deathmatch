@@ -2,7 +2,7 @@
 # https://docs.nanos-world.com/docs/core-concepts/packages/packages-guide
 
 [meta]
-title = "deathmatch-lux"
+title = "deathmatch-nebra"
 type = "game-mode"
 author = ""
 version = "0.1.0"

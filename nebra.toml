@@ -1,7 +1,7 @@
 version = "0.1.0"
 target = "5.4"
 output = "out"
-name = "deathmatch-lux"
+name = "deathmatch-nebra"
 source = "src"
 generate_declarations = false
 globals = ["types"]
@@ -11,7 +11,7 @@ globals = ["types"]
 "src/Client/UI" = "Client/UI"
 
 [dependencies]
-nanos-world-types = "github:LuaLux/nanos-world-types"
+nanos-world-types = "github:nebra-lang/nanos-world-types"
 
 [code]
 import_statement = 'Package.Require(%s)'
