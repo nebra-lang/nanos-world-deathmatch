@@ -116,10 +116,10 @@ end
 
 local function spawnPowerUp(location: Vector)
     local newLoc = location + new Vector(0, 0, 30)
-    local p1 = new Prop(newLoc, new Rotator(), "nanos-world::SM_Cube", CollisionType.NoCollision, false, false)
+    local p1 = new Prop(newLoc, new Rotator(), "nanos-world::SM_Cube", CollisionType.NoCollision, false, GrabMode.Disabled)
     p1:SetScale(new Vector(0.75, 0.25, 0.25))
     p1:SetMaterialColorParameter("Emissive", Color.GREEN)
-    local p2 = new Prop(newLoc, new Rotator(), "nanos-world::SM_Cube", CollisionType.NoCollision, false, false)
+    local p2 = new Prop(newLoc, new Rotator(), "nanos-world::SM_Cube", CollisionType.NoCollision, false, GrabMode.Disabled)
     p2:SetScale(new Vector(0.25, 0.25, 0.75))
     p2:SetMaterialColorParameter("Emissive", Color.GREEN)
     local trigger = new Trigger(newLoc, new Rotator(), new Vector(100, 100, 100), TriggerType.Sphere, false, Color.BLACK, { "Character" })
