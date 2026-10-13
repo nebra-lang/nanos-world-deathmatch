@@ -18,9 +18,9 @@ end
 local function spawnActionSound(location: Vector, asset: string, player: Player?)
     Timer.SetTimeout(function(_asset)
         if player ~= nil then
-            Events.CallRemote("SpawnActionSound", player, location, _asset)
+            Events.CallRemote("SpawnActionSound", player, Reliability.Reliable, location, _asset)
         else
-            Events.BroadcastRemote("SpawnActionSound", location, _asset)
+            Events.BroadcastRemote("SpawnActionSound", Reliability.Reliable, location, _asset)
         end
     end, 300, asset)
 end
@@ -28,15 +28,15 @@ end
 local function addScore(player: Player, score: number, id: string, label: string, useCurrentLabel: boolean?, silence: boolean?)
     player:SetValue("Score", getNum(player, "Score") + score, true)
     if not silence then
-        Events.CallRemote("AddScore", player, score, id, label, useCurrentLabel or false)
+        Events.CallRemote("AddScore", player, Reliability.Reliable, score, id, label, useCurrentLabel or false)
     end
 end
 
 local function updatePlayerMatchState(player: Player?)
     if player ~= nil then
-        Events.CallRemote("UpdateMatchState", player, state.matchState, state.remainingTime, state.skyHourTime)
+        Events.CallRemote("UpdateMatchState", player, Reliability.Reliable, state.matchState, state.remainingTime, state.skyHourTime)
     else
-        Events.BroadcastRemote("UpdateMatchState", state.matchState, state.remainingTime, state.skyHourTime)
+        Events.BroadcastRemote("UpdateMatchState", Reliability.Reliable, state.matchState, state.remainingTime, state.skyHourTime)
     end
 end
 
@@ -62,7 +62,7 @@ end
 
 local function respawnPlayer(player: Player): Character?
     if not player or not player:IsValid() then return nil end
-    local existing = player:GetControlledCharacter()
+    local existing = player:GetControlledCharacter() as Character | nil
     local spawnPoint = state.spawnLocations[math.random(#state.spawnLocations)]
     local loc = (spawnPoint and spawnPoint.location) or new Vector(math.random(-3000, 3000), math.random(-3000, 3000), 0)
     loc = loc + new Vector(0, 0, math.random(5000, 6000))
@@ -132,7 +132,7 @@ local function spawnPowerUp(location: Vector)
             if weapon ~= nil and weapon:IsA(Weapon) then
                 weapon:SetAmmoBag(math.min(weapon:GetAmmoBag() + 50, 100))
             end
-            Events.CallRemote("SpawnSound", object:GetPlayer(), new Vector(), "nanos-world::A_VR_Open", true, 1, 1)
+            Events.CallRemote("SpawnSound", object:GetPlayer(), Reliability.Reliable, new Vector(), "nanos-world::A_VR_Open", true, 1, 1)
             self:Destroy()
         end
     end)
@@ -151,13 +151,13 @@ local function announcePostTime()
     end)
     for rank, p in pairs(ranking) do
         if rank == 1 then
-            Events.CallRemote("SpawnSound", p, new Vector(), "unreal-tournament-announcer::A_Winner", true, 1, 1)
+            Events.CallRemote("SpawnSound", p, Reliability.Reliable, new Vector(), "unreal-tournament-announcer::A_Winner", true, 1, 1)
         elseif rank == #ranking then
-            Events.CallRemote("SpawnSound", p, new Vector(), "unreal-tournament-announcer::A_LastPlace", true, 1, 1)
+            Events.CallRemote("SpawnSound", p, Reliability.Reliable, new Vector(), "unreal-tournament-announcer::A_LastPlace", true, 1, 1)
         end
         local pScore = getNum(p, "Score")
         Chat.BroadcastMessage(tostring(rank) .. "# <cyan>" .. p:GetName() .. "</>: " .. tostring(pScore))
-        Events.CallRemote("SubmitScoreToSteamLeaderboard", p, pScore)
+        Events.CallRemote("SubmitScoreToSteamLeaderboard", p, Reliability.Reliable, pScore)
     end
     Chat.BroadcastMessage("<grey>=============================</>")
 end
@@ -173,7 +173,7 @@ local function updateMatchState(newState: number)
         cleanUp()
     elseif newState == MatchState.Preparing then
         state.remainingTime = SETTINGS.preparingTime
-        Events.BroadcastRemote("SpawnSound", new Vector(), "unreal-tournament-announcer::A_Prepare", true, 1, 1)
+        Events.BroadcastRemote("SpawnSound", Reliability.Reliable, new Vector(), "unreal-tournament-announcer::A_Prepare", true, 1, 1)
         Console.Log("Preparing!")
         Chat.BroadcastMessage("<grey>Preparing!</>")
         cleanUp()
@@ -184,7 +184,7 @@ local function updateMatchState(newState: number)
     elseif newState == MatchState.InProgress then
         state.remainingTime = SETTINGS.matchTime
         state.firstBlood = false
-        Events.BroadcastRemote("SpawnSound", new Vector(), "unreal-tournament-announcer::A_Proceed", true, 1, 1)
+        Events.BroadcastRemote("SpawnSound", Reliability.Reliable, new Vector(), "unreal-tournament-announcer::A_Proceed", true, 1, 1)
         Console.Log("Round started!")
         Chat.BroadcastMessage("<grey>Round Started!</>")
         for _, c in pairs(Character.GetAll()) do
@@ -250,7 +250,7 @@ local function levelUpGunGame(player: Player)
     end
     player:SetValue("AccumulatedKills", 0, true)
     addScore(player, 1, "level_up", "LEVEL UP", false, true)
-    local character = player:GetControlledCharacter()
+    local character = player:GetControlledCharacter() as Character | nil
     if character == nil then return end
     local weapon = character:GetPicked()
     local oldAiming = character:GetWeaponAimMode()
@@ -381,7 +381,7 @@ Timer.SetInterval(function()
         else
             local announcer = GetCountdownAnnouncer(state.remainingTime)
             if announcer ~= nil then
-                Events.BroadcastRemote("SpawnSound", new Vector(), announcer, true, 1, 1)
+                Events.BroadcastRemote("SpawnSound", Reliability.Reliable, new Vector(), announcer, true, 1, 1)
             end
         end
     elseif state.matchState == MatchState.InProgress then
@@ -390,7 +390,7 @@ Timer.SetInterval(function()
         else
             local announcer = GetCountdownAnnouncer(state.remainingTime)
             if announcer ~= nil then
-                Events.BroadcastRemote("SpawnSound", new Vector(), announcer, true, 1, 1)
+                Events.BroadcastRemote("SpawnSound", Reliability.Reliable, new Vector(), announcer, true, 1, 1)
             end
         end
     elseif state.matchState == MatchState.PostTime then

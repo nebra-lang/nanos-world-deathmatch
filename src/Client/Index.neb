@@ -119,7 +119,7 @@ Package.Subscribe("Load", function()
 
     local localPlayer = Client.GetLocalPlayer()
     if localPlayer ~= nil then
-        updateLocalCharacter(localPlayer:GetControlledCharacter())
+        updateLocalCharacter(localPlayer:GetControlledCharacter() as Character | nil)
         localPlayer:Subscribe("Possess", function(p: Player, character: Character)
             updateLocalCharacter(character)
         end)
