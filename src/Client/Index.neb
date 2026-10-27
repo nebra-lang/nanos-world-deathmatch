@@ -107,8 +107,8 @@ Timer.SetInterval(function()
 end, 1000)
 
 Client.Subscribe("SpawnLocalPlayer", function(localPlayer: Player)
-    localPlayer:Subscribe("Possess", function(p: Player, character: Character)
-        updateLocalCharacter(character)
+    localPlayer:Subscribe("Possess", function(p, pawn)
+        updateLocalCharacter(pawn as Character)
     end)
 end)
 
@@ -120,8 +120,8 @@ Package.Subscribe("Load", function()
     local localPlayer = Client.GetLocalPlayer()
     if localPlayer ~= nil then
         updateLocalCharacter(localPlayer:GetControlledCharacter() as Character | nil)
-        localPlayer:Subscribe("Possess", function(p: Player, character: Character)
-            updateLocalCharacter(character)
+        localPlayer:Subscribe("Possess", function(p, pawn)
+            updateLocalCharacter(pawn as Character)
         end)
     end
 

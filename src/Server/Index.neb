@@ -125,12 +125,14 @@ local function spawnPowerUp(location: Vector)
     local trigger = new Trigger(newLoc, new Rotator(), new Vector(100, 100, 100), TriggerType.Sphere, false, Color.BLACK, { "Character" })
     p1:AttachTo(trigger as Actor, AttachmentRule.SnapToTarget, "", 0)
     p2:AttachTo(trigger as Actor, AttachmentRule.SnapToTarget, "", 0)
-    trigger:Subscribe("BeginOverlap", function(self, object)
-        if object:IsA(Character) and not object:IsDead() then
+    trigger:Subscribe("BeginOverlap", function(self, other)
+        local object = other as Character
+        if other:IsA(Character) and not object:IsDead() then
             object:SetHealth(math.min(object:GetHealth() + 50, 120))
             local weapon = object:GetPicked()
             if weapon ~= nil and weapon:IsA(Weapon) then
-                weapon:SetAmmoBag(math.min(weapon:GetAmmoBag() + 50, 100))
+                local held = weapon as Weapon
+                held:SetAmmoBag(math.min(held:GetAmmoBag() + 50, 100))
             end
             Events.CallRemote("SpawnSound", object:GetPlayer(), Reliability.Reliable, new Vector(), "nanos-world::A_VR_Open", true, 1, 1)
             self:Destroy()
